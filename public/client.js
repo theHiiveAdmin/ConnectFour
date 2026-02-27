@@ -284,7 +284,9 @@ function handleGameOver(state) {
 
 function renderState(state) {
   gameState = state;
-  appShell.classList.remove("hidden");
+  if (mySlot !== null) {
+    appShell.classList.remove("hidden");
+  }
 
   showScreenForState(state);
   renderStatus(state);
@@ -332,6 +334,13 @@ soundToggle.addEventListener("click", () => {
 
 rematchBtn.addEventListener("click", () => {
   socket.emit("request_rematch");
+});
+
+const startOverBtn = document.getElementById("startOverBtn");
+startOverBtn.addEventListener("click", () => {
+  if (confirm("Start over? This will reset the game for both players.")) {
+    socket.emit("reset_game");
+  }
 });
 
 ["pointerdown", "keydown", "touchstart"].forEach((eventName) => {
@@ -385,6 +394,22 @@ socket.on("rematch_status", (payload) => {
     return;
   }
   rematchStatus.textContent = `Rematch ready: ${payload.readyNames.join(", ")}`;
+});
+
+socket.on("game_reset", () => {
+  mySlot = null;
+  myName = "";
+  gameState = null;
+  previousBoard = null;
+  gameOverHandledFor = null;
+  localStorage.removeItem(CLIENT_ID_KEY);
+  joinOverlay.classList.remove("hidden");
+  appShell.classList.add("hidden");
+  nameInput.value = "";
+  joinError.textContent = "";
+  resultBanner.textContent = "";
+  rematchArea.classList.add("hidden");
+  rematchStatus.textContent = "";
 });
 
 socket.on("opponent_disconnected", () => {

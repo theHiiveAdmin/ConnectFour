@@ -371,6 +371,28 @@ io.on("connection", (socket) => {
     }
   });
 
+  socket.on("reset_game", () => {
+    state.players = [null, null];
+    state.board = createEmptyBoard();
+    state.history = [];
+    state.gameNumber = 0;
+    state.gameActive = false;
+    state.winnerSlot = null;
+    state.isDraw = false;
+    state.currentTurn = null;
+    state.currentStarter = null;
+    state.nextStarter = null;
+    state.rematchReady = [false, false];
+    state.startedOnce = false;
+
+    socketToSlot.clear();
+    clientIdToSlot.clear();
+
+    io.emit("game_reset");
+    broadcastLobbyUpdate();
+    broadcastState();
+  });
+
   socket.on("disconnect", () => {
     const slot = socketToSlot.get(socket.id);
     if (slot === undefined) return;

@@ -39,7 +39,7 @@ body {
   inset: 0;
   display: grid;
   place-items: center;
-  background: rgba(15, 23, 42, 0.35);
+  background: rgba(15, 23, 42, 0.7);
   padding: 16px;
 }
 
@@ -118,9 +118,22 @@ button:disabled {
   min-height: 1.25rem;
 }
 
+.top-bar-actions {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .sound-toggle {
   background: #1d4ed8;
   white-space: nowrap;
+}
+
+.start-over-btn {
+  background: #b91c1c;
+  white-space: nowrap;
+  font-size: 0.85rem;
+  padding: 0 14px;
 }
 
 .waiting-screen {
