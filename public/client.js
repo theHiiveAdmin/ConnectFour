@@ -456,6 +456,23 @@ gameSoundToggle.addEventListener("click", toggleSound);
   window.addEventListener(eventName, unlockAudio, { once: true, passive: true });
 });
 
+let lobbyPollInterval = null;
+
+function startLobbyPolling() {
+  stopLobbyPolling();
+  socket.emit("get_rooms");
+  lobbyPollInterval = setInterval(() => {
+    socket.emit("get_rooms");
+  }, 3000);
+}
+
+function stopLobbyPolling() {
+  if (lobbyPollInterval) {
+    clearInterval(lobbyPollInterval);
+    lobbyPollInterval = null;
+  }
+}
+
 socket.on("name_set", (payload) => {
   myName = payload.name;
   localStorage.setItem(NAME_KEY, myName);
@@ -465,6 +482,7 @@ socket.on("name_set", (payload) => {
   lobbyPlayerName.textContent = myName;
   youName.textContent = myName;
   showScreen(lobbyScreen);
+  startLobbyPolling();
 });
 
 socket.on("name_error", (payload) => {
@@ -485,6 +503,7 @@ socket.on("joined_room", (payload) => {
   resultBanner.textContent = "";
   rematchArea.classList.add("hidden");
   buildBoard();
+  stopLobbyPolling();
   showScreen(gameScreenEl);
 });
 
@@ -495,6 +514,7 @@ socket.on("left_room", () => {
   previousBoard = null;
   gameOverHandledFor = null;
   showScreen(lobbyScreen);
+  startLobbyPolling();
 });
 
 socket.on("room_state", (state) => {
@@ -542,10 +562,12 @@ socket.on("action_error", (payload) => {
   }
 });
 
-const savedName = localStorage.getItem(NAME_KEY);
-if (savedName && savedName.length >= 2) {
-  nameInput.value = savedName;
-  socket.emit("set_name", { name: savedName, clientId: getClientId() });
-}
+socket.on("connect", () => {
+  const savedName = localStorage.getItem(NAME_KEY);
+  if (savedName && savedName.length >= 2) {
+    nameInput.value = savedName;
+    socket.emit("set_name", { name: savedName, clientId: getClientId() });
+  }
+});
 
 setSoundToggleLabels();

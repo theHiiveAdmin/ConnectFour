@@ -308,6 +308,10 @@ io.on("connection", (socket) => {
     socket.emit("room_list", getRoomList());
   });
 
+  socket.on("get_rooms", () => {
+    socket.emit("room_list", getRoomList());
+  });
+
   socket.on("create_room", (payload = {}) => {
     const info = socketInfo.get(socket.id);
     if (!info.name) {
