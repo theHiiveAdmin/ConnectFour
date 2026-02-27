@@ -11,6 +11,7 @@
   --success: #0f766e;
   --red-disc: #dc2626;
   --yellow-disc: #facc15;
+  --primary: #1d4ed8;
 }
 
 * {
@@ -34,21 +35,21 @@ body {
   display: none !important;
 }
 
-.overlay {
-  position: fixed;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  background: rgba(15, 23, 42, 0.7);
-  padding: 16px;
+.screen {
+  max-width: 1200px;
+  margin: 0 auto;
 }
 
 .card {
   width: min(100%, 420px);
   background: var(--surface);
   border-radius: 16px;
-  padding: 20px;
-  box-shadow: 0 18px 30px rgba(2, 6, 23, 0.22);
+  padding: 24px;
+  box-shadow: 0 18px 30px rgba(2, 6, 23, 0.12);
+}
+
+.login-card {
+  margin: 80px auto 0;
 }
 
 .card h1 {
@@ -95,9 +96,8 @@ button:disabled {
   color: var(--muted);
 }
 
-.app-shell {
-  max-width: 1200px;
-  margin: 0 auto;
+.center-text {
+  text-align: center;
 }
 
 .top-bar {
@@ -105,7 +105,8 @@ button:disabled {
   justify-content: space-between;
   align-items: center;
   gap: 12px;
-  margin-bottom: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
 }
 
 .top-bar h2 {
@@ -122,28 +123,156 @@ button:disabled {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .sound-toggle {
-  background: #1d4ed8;
+  background: var(--primary);
   white-space: nowrap;
+  font-size: 0.85rem;
+  padding: 0 12px;
+}
+
+.logout-btn {
+  background: var(--muted);
+  white-space: nowrap;
+  font-size: 0.85rem;
+  padding: 0 12px;
+}
+
+.leave-btn {
+  background: var(--muted);
+  white-space: nowrap;
+  font-size: 0.85rem;
+  padding: 0 12px;
 }
 
 .start-over-btn {
-  background: #b91c1c;
+  background: var(--danger);
   white-space: nowrap;
   font-size: 0.85rem;
-  padding: 0 14px;
+  padding: 0 12px;
+}
+
+.lobby-content {
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 20px;
+  box-shadow: 0 10px 20px rgba(2, 6, 23, 0.08);
+}
+
+.lobby-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.lobby-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.create-room-btn {
+  background: var(--primary);
+  font-size: 0.9rem;
+  padding: 0 16px;
+}
+
+.create-room-form {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.create-room-form input {
+  flex: 1;
+  min-width: 150px;
+}
+
+.create-room-form .cancel-btn {
+  background: var(--muted);
+}
+
+.room-list-container {
+  min-height: 100px;
+}
+
+.room-list {
+  display: grid;
+  gap: 10px;
+}
+
+.room-card {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border-radius: 12px;
+  border: 1px solid #e2e8f0;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.room-card-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.room-card-name {
+  font-weight: 600;
+  font-size: 1rem;
+  margin: 0 0 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.room-card-players {
+  font-size: 0.85rem;
+  color: var(--muted);
+  margin: 0;
+}
+
+.room-card-status {
+  font-size: 0.8rem;
+  margin: 2px 0 0;
+}
+
+.room-card-status.waiting {
+  color: var(--primary);
+}
+
+.room-card-status.in-game {
+  color: var(--success);
+}
+
+.room-card-status.full {
+  color: var(--muted);
+}
+
+.join-room-btn {
+  background: var(--primary);
+  font-size: 0.85rem;
+  padding: 0 18px;
+  white-space: nowrap;
+}
+
+.join-room-btn:disabled {
+  background: var(--muted);
 }
 
 .waiting-screen {
   background: var(--surface);
   border-radius: 14px;
-  padding: 16px;
-  box-shadow: 0 10px 20px rgba(2, 6, 23, 0.1);
+  padding: 20px;
+  box-shadow: 0 10px 20px rgba(2, 6, 23, 0.08);
+  text-align: center;
 }
 
-.game-screen {
+.game-area {
   display: grid;
   gap: 12px;
 }

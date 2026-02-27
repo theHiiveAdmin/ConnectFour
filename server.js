@@ -6,7 +6,6 @@ const { Server } = require("socket.io");
 const ROWS = 6;
 const COLS = 7;
 const COLORS = ["red", "yellow"];
-const MAX_PLAYERS = 2;
 
 const app = express();
 const server = http.createServer(app);
@@ -14,57 +13,51 @@ const io = new Server(server);
 
 app.use(express.static(path.join(__dirname, "public")));
 
-const state = {
-  players: [null, null],
-  board: createEmptyBoard(),
-  history: [],
-  gameNumber: 0,
-  gameActive: false,
-  winnerSlot: null,
-  isDraw: false,
-  currentTurn: null,
-  currentStarter: null,
-  nextStarter: null,
-  rematchReady: [false, false],
-  startedOnce: false
-};
-
-const socketToSlot = new Map();
-const clientIdToSlot = new Map();
+const rooms = new Map();
+const socketInfo = new Map();
+const clientIdToSession = new Map();
 
 function createEmptyBoard() {
   return Array.from({ length: ROWS }, () => Array(COLS).fill(null));
 }
 
 function normalizeName(name) {
-  return String(name ?? "")
-    .trim()
-    .replace(/\s+/g, " ")
-    .slice(0, 20);
+  return String(name ?? "").trim().replace(/\s+/g, " ").slice(0, 20);
 }
 
 function isValidName(name) {
   return typeof name === "string" && name.length >= 2 && name.length <= 20;
 }
 
-function connectedPlayersCount() {
-  return state.players.filter((p) => p && p.connected).length;
+function generateRoomId() {
+  return Math.random().toString(36).slice(2, 8).toUpperCase();
 }
 
-function namedPlayersCount() {
-  return state.players.filter(Boolean).length;
+function createRoom(name, creatorName) {
+  const id = generateRoomId();
+  const room = {
+    id,
+    name: name || `${creatorName}'s Room`,
+    players: [null, null],
+    board: createEmptyBoard(),
+    history: [],
+    gameNumber: 0,
+    gameActive: false,
+    winnerSlot: null,
+    isDraw: false,
+    currentTurn: null,
+    currentStarter: null,
+    nextStarter: null,
+    rematchReady: [false, false],
+    startedOnce: false,
+    createdAt: Date.now()
+  };
+  rooms.set(id, room);
+  return room;
 }
 
-function bothPlayersPresent() {
-  return namedPlayersCount() === MAX_PLAYERS;
-}
-
-function bothPlayersConnected() {
-  return state.players.every((p) => p && p.connected);
-}
-
-function getPublicPlayers() {
-  return state.players.map((player, slot) => {
+function getRoomPublicPlayers(room) {
+  return room.players.map((player, slot) => {
     if (!player) return null;
     return {
       slot,
@@ -75,112 +68,136 @@ function getPublicPlayers() {
   });
 }
 
-function getStatePayload() {
+function bothPlayersPresent(room) {
+  return room.players.filter(Boolean).length === 2;
+}
+
+function bothPlayersConnected(room) {
+  return room.players.every((p) => p && p.connected);
+}
+
+function getRoomStatePayload(room) {
   return {
-    players: getPublicPlayers(),
-    board: state.board,
-    history: state.history,
-    gameNumber: state.gameNumber,
-    gameActive: state.gameActive,
-    winnerSlot: state.winnerSlot,
+    roomId: room.id,
+    roomName: room.name,
+    players: getRoomPublicPlayers(room),
+    board: room.board,
+    history: room.history,
+    gameNumber: room.gameNumber,
+    gameActive: room.gameActive,
+    winnerSlot: room.winnerSlot,
     winnerName:
-      state.winnerSlot !== null ? state.players[state.winnerSlot]?.name ?? null : null,
-    isDraw: state.isDraw,
-    currentTurn: state.currentTurn,
+      room.winnerSlot !== null ? room.players[room.winnerSlot]?.name ?? null : null,
+    isDraw: room.isDraw,
+    currentTurn: room.currentTurn,
     currentTurnName:
-      state.currentTurn !== null ? state.players[state.currentTurn]?.name ?? null : null,
-    currentStarter: state.currentStarter,
+      room.currentTurn !== null ? room.players[room.currentTurn]?.name ?? null : null,
+    currentStarter: room.currentStarter,
     currentStarterName:
-      state.currentStarter !== null
-        ? state.players[state.currentStarter]?.name ?? null
+      room.currentStarter !== null
+        ? room.players[room.currentStarter]?.name ?? null
         : null,
-    rematchReady: state.rematchReady,
-    bothConnected: bothPlayersConnected()
+    rematchReady: room.rematchReady,
+    bothConnected: bothPlayersConnected(room)
   };
 }
 
-function broadcastLobbyUpdate() {
-  io.emit("lobby_update", {
-    connectedPlayers: connectedPlayersCount(),
-    namedPlayers: namedPlayersCount(),
-    maxPlayers: MAX_PLAYERS,
-    players: getPublicPlayers()
-  });
+function broadcastRoomState(roomId) {
+  const room = rooms.get(roomId);
+  if (!room) return;
+  io.to(roomId).emit("room_state", getRoomStatePayload(room));
 }
 
-function broadcastState() {
-  io.emit("state_update", getStatePayload());
+function getRoomList() {
+  const list = [];
+  for (const [id, room] of rooms) {
+    const playerCount = room.players.filter(Boolean).length;
+    list.push({
+      id,
+      name: room.name,
+      playerCount,
+      players: getRoomPublicPlayers(room),
+      gameActive: room.gameActive,
+      isFull: playerCount >= 2
+    });
+  }
+  list.sort((a, b) => b.playerCount - a.playerCount || rooms.get(b.id).createdAt - rooms.get(a.id).createdAt);
+  return list;
 }
 
-function addHistoryEntry(winnerSlot, isDraw) {
-  state.history.push({
-    game: state.gameNumber,
+function broadcastRoomList() {
+  io.emit("room_list", getRoomList());
+}
+
+function addHistoryEntry(room, winnerSlot, isDraw) {
+  room.history.push({
+    game: room.gameNumber,
     timestamp: new Date().toISOString(),
-    winner: isDraw ? "Draw" : state.players[winnerSlot]?.name ?? "Unknown",
-    starter: state.players[state.currentStarter]?.name ?? "Unknown"
+    winner: isDraw ? "Draw" : room.players[winnerSlot]?.name ?? "Unknown",
+    starter: room.players[room.currentStarter]?.name ?? "Unknown"
   });
 }
 
-function startGame(starterSlot) {
-  if (!bothPlayersPresent()) return;
+function startGame(room) {
+  if (!bothPlayersPresent(room)) return;
 
-  state.gameNumber += 1;
-  state.board = createEmptyBoard();
-  state.gameActive = true;
-  state.winnerSlot = null;
-  state.isDraw = false;
-  state.currentStarter = starterSlot;
-  state.currentTurn = starterSlot;
-  state.rematchReady = [false, false];
+  let starterSlot;
+  if (!room.startedOnce) {
+    starterSlot = Math.random() < 0.5 ? 0 : 1;
+    room.startedOnce = true;
+    room.nextStarter = 1 - starterSlot;
+  } else {
+    starterSlot = room.nextStarter ?? (room.currentStarter === 0 ? 1 : 0);
+    room.nextStarter = 1 - starterSlot;
+  }
 
-  io.emit("start_game", {
-    gameNumber: state.gameNumber,
+  room.gameNumber += 1;
+  room.board = createEmptyBoard();
+  room.gameActive = true;
+  room.winnerSlot = null;
+  room.isDraw = false;
+  room.currentStarter = starterSlot;
+  room.currentTurn = starterSlot;
+  room.rematchReady = [false, false];
+
+  io.to(room.id).emit("start_game", {
+    gameNumber: room.gameNumber,
     starterSlot,
-    starterName: state.players[starterSlot]?.name ?? "Unknown"
+    starterName: room.players[starterSlot]?.name ?? "Unknown"
   });
 
-  broadcastState();
+  broadcastRoomState(room.id);
 }
 
-function startFirstGameIfReady() {
-  if (!bothPlayersPresent() || state.startedOnce) return;
-  const randomStarter = Math.random() < 0.5 ? 0 : 1;
-  state.startedOnce = true;
-  state.nextStarter = 1 - randomStarter;
-  startGame(randomStarter);
-}
+function finishGame(room, winnerSlot, isDraw) {
+  room.gameActive = false;
+  room.winnerSlot = winnerSlot;
+  room.isDraw = isDraw;
+  room.rematchReady = [false, false];
+  addHistoryEntry(room, winnerSlot, isDraw);
 
-function finishGame(winnerSlot, isDraw) {
-  state.gameActive = false;
-  state.winnerSlot = winnerSlot;
-  state.isDraw = isDraw;
-  state.rematchReady = [false, false];
-  addHistoryEntry(winnerSlot, isDraw);
-
-  io.emit("game_over", {
+  io.to(room.id).emit("game_over", {
     winnerSlot,
-    winnerName: winnerSlot !== null ? state.players[winnerSlot]?.name ?? null : null,
+    winnerName: winnerSlot !== null ? room.players[winnerSlot]?.name ?? null : null,
     isDraw,
-    history: state.history
+    history: room.history
   });
 
-  broadcastState();
+  broadcastRoomState(room.id);
 }
 
-function getLowestOpenRow(column) {
+function getLowestOpenRow(room, column) {
   for (let row = ROWS - 1; row >= 0; row -= 1) {
-    if (!state.board[row][column]) return row;
+    if (!room.board[row][column]) return row;
   }
   return -1;
 }
 
-function boardIsFull() {
-  return state.board.every((row) => row.every((cell) => Boolean(cell)));
+function boardIsFull(room) {
+  return room.board.every((row) => row.every((cell) => Boolean(cell)));
 }
 
-function didMoveWin(row, col, color) {
-  // Win detection checks lines through the latest disc in all 4 directions.
-  // If 4 or more contiguous matching discs are found, that move wins.
+function didMoveWin(room, row, col, color) {
   const directions = [
     [1, 0],
     [0, 1],
@@ -193,7 +210,7 @@ function didMoveWin(row, col, color) {
 
     let r = row + dr;
     let c = col + dc;
-    while (r >= 0 && r < ROWS && c >= 0 && c < COLS && state.board[r][c] === color) {
+    while (r >= 0 && r < ROWS && c >= 0 && c < COLS && room.board[r][c] === color) {
       count += 1;
       r += dr;
       c += dc;
@@ -201,7 +218,7 @@ function didMoveWin(row, col, color) {
 
     r = row - dr;
     c = col - dc;
-    while (r >= 0 && r < ROWS && c >= 0 && c < COLS && state.board[r][c] === color) {
+    while (r >= 0 && r < ROWS && c >= 0 && c < COLS && room.board[r][c] === color) {
       count += 1;
       r -= dr;
       c -= dc;
@@ -213,109 +230,220 @@ function didMoveWin(row, col, color) {
   return false;
 }
 
-function registerPlayer(socket, name, clientId) {
-  const existingSlot = clientIdToSlot.get(clientId);
-  if (existingSlot !== undefined && state.players[existingSlot]) {
-    const player = state.players[existingSlot];
-    player.name = name;
-    player.socketId = socket.id;
-    player.connected = true;
+function removePlayerFromRoom(socketId) {
+  const info = socketInfo.get(socketId);
+  if (!info || !info.roomId) return;
 
-    socketToSlot.set(socket.id, existingSlot);
-    socket.emit("join_success", {
-      slot: existingSlot,
-      color: player.color,
-      player: {
-        name: player.name,
-        slot: existingSlot,
-        color: player.color
-      },
-      clientId
-    });
-    broadcastLobbyUpdate();
-    broadcastState();
-    return true;
+  const room = rooms.get(info.roomId);
+  if (!room) return;
+
+  const slot = info.slot;
+  if (slot !== undefined && room.players[slot]?.socketId === socketId) {
+    room.players[slot] = null;
   }
 
-  const openSlot = state.players.findIndex((player) => player === null);
-  if (openSlot === -1) {
-    socket.emit("room_full", {
-      message: "Game is full. Try again when a seat opens."
-    });
-    return false;
+  info.roomId = null;
+  info.slot = undefined;
+
+  const remainingPlayers = room.players.filter(Boolean).length;
+  if (remainingPlayers === 0) {
+    rooms.delete(room.id);
+  } else {
+    room.gameActive = false;
+    room.winnerSlot = null;
+    room.isDraw = false;
+    room.currentTurn = null;
+    room.rematchReady = [false, false];
+    room.startedOnce = false;
+    room.board = createEmptyBoard();
+    broadcastRoomState(room.id);
   }
 
-  state.players[openSlot] = {
-    name,
-    color: COLORS[openSlot],
-    socketId: socket.id,
-    connected: true,
-    clientId
-  };
-
-  clientIdToSlot.set(clientId, openSlot);
-  socketToSlot.set(socket.id, openSlot);
-
-  socket.emit("join_success", {
-    slot: openSlot,
-    color: COLORS[openSlot],
-    player: {
-      name,
-      slot: openSlot,
-      color: COLORS[openSlot]
-    },
-    clientId
-  });
-
-  broadcastLobbyUpdate();
-  broadcastState();
-  startFirstGameIfReady();
-  return true;
+  broadcastRoomList();
 }
 
 io.on("connection", (socket) => {
-  // Socket events:
-  // - join(name, clientId): claims/reattaches a seat
-  // - make_move(column): server-validated Connect Four move
-  // - request_rematch: marks this player ready for rematch
-  socket.emit("state_update", getStatePayload());
-  socket.emit("lobby_update", {
-    connectedPlayers: connectedPlayersCount(),
-    namedPlayers: namedPlayersCount(),
-    maxPlayers: MAX_PLAYERS,
-    players: getPublicPlayers()
-  });
+  socketInfo.set(socket.id, { name: null, roomId: null, slot: undefined, clientId: null });
 
-  socket.on("join", (payload = {}) => {
+  socket.emit("room_list", getRoomList());
+
+  socket.on("set_name", (payload = {}) => {
     const name = normalizeName(payload.name);
     if (!isValidName(name)) {
-      socket.emit("join_error", {
-        message: "Name is required (2-20 characters)."
-      });
+      socket.emit("name_error", { message: "Name must be 2-20 characters." });
+      return;
+    }
+    const clientId = String(payload.clientId || `client-${Math.random().toString(36).slice(2, 10)}`);
+    const info = socketInfo.get(socket.id);
+    info.name = name;
+    info.clientId = clientId;
+
+    const existingSession = clientIdToSession.get(clientId);
+    if (existingSession && existingSession.roomId) {
+      const room = rooms.get(existingSession.roomId);
+      if (room && room.players[existingSession.slot] && !room.players[existingSession.slot].connected) {
+        room.players[existingSession.slot].socketId = socket.id;
+        room.players[existingSession.slot].connected = true;
+        room.players[existingSession.slot].name = name;
+        info.roomId = room.id;
+        info.slot = existingSession.slot;
+        socket.join(room.id);
+
+        socket.emit("name_set", { name, clientId });
+        socket.emit("joined_room", {
+          roomId: room.id,
+          roomName: room.name,
+          slot: existingSession.slot,
+          color: COLORS[existingSession.slot]
+        });
+
+        broadcastRoomState(room.id);
+        broadcastRoomList();
+        return;
+      }
+    }
+
+    clientIdToSession.set(clientId, { roomId: null, slot: undefined });
+    socket.emit("name_set", { name, clientId });
+    socket.emit("room_list", getRoomList());
+  });
+
+  socket.on("create_room", (payload = {}) => {
+    const info = socketInfo.get(socket.id);
+    if (!info.name) {
+      socket.emit("action_error", { message: "Set your name first." });
       return;
     }
 
-    const clientId = String(payload.clientId || `client-${Math.random().toString(36).slice(2, 10)}`);
-    registerPlayer(socket, name, clientId);
+    if (info.roomId) {
+      socket.leave(info.roomId);
+      removePlayerFromRoom(socket.id);
+    }
+
+    const roomName = normalizeName(payload.roomName) || `${info.name}'s Room`;
+    const room = createRoom(roomName, info.name);
+
+    room.players[0] = {
+      name: info.name,
+      color: COLORS[0],
+      socketId: socket.id,
+      connected: true
+    };
+
+    info.roomId = room.id;
+    info.slot = 0;
+    socket.join(room.id);
+
+    if (info.clientId) {
+      clientIdToSession.set(info.clientId, { roomId: room.id, slot: 0 });
+    }
+
+    socket.emit("joined_room", {
+      roomId: room.id,
+      roomName: room.name,
+      slot: 0,
+      color: COLORS[0]
+    });
+
+    broadcastRoomState(room.id);
+    broadcastRoomList();
+  });
+
+  socket.on("join_room", (payload = {}) => {
+    const info = socketInfo.get(socket.id);
+    if (!info.name) {
+      socket.emit("action_error", { message: "Set your name first." });
+      return;
+    }
+
+    const room = rooms.get(payload.roomId);
+    if (!room) {
+      socket.emit("action_error", { message: "Room not found." });
+      return;
+    }
+
+    const openSlot = room.players.findIndex((p) => p === null);
+    if (openSlot === -1) {
+      socket.emit("action_error", { message: "Room is full." });
+      return;
+    }
+
+    if (info.roomId) {
+      socket.leave(info.roomId);
+      removePlayerFromRoom(socket.id);
+    }
+
+    room.players[openSlot] = {
+      name: info.name,
+      color: COLORS[openSlot],
+      socketId: socket.id,
+      connected: true
+    };
+
+    info.roomId = room.id;
+    info.slot = openSlot;
+    socket.join(room.id);
+
+    if (info.clientId) {
+      clientIdToSession.set(info.clientId, { roomId: room.id, slot: openSlot });
+    }
+
+    socket.emit("joined_room", {
+      roomId: room.id,
+      roomName: room.name,
+      slot: openSlot,
+      color: COLORS[openSlot]
+    });
+
+    broadcastRoomState(room.id);
+    broadcastRoomList();
+
+    if (bothPlayersPresent(room) && !room.startedOnce) {
+      startGame(room);
+    }
+  });
+
+  socket.on("leave_room", () => {
+    const info = socketInfo.get(socket.id);
+    if (!info.roomId) return;
+
+    if (info.clientId) {
+      const session = clientIdToSession.get(info.clientId);
+      if (session) {
+        session.roomId = null;
+        session.slot = undefined;
+      }
+    }
+
+    const roomId = info.roomId;
+    socket.leave(roomId);
+    removePlayerFromRoom(socket.id);
+
+    socket.emit("left_room");
+    socket.emit("room_list", getRoomList());
   });
 
   socket.on("make_move", (payload = {}) => {
-    const slot = socketToSlot.get(socket.id);
+    const info = socketInfo.get(socket.id);
+    if (!info.roomId) return;
+
+    const room = rooms.get(info.roomId);
+    if (!room) return;
+
+    const slot = info.slot;
     if (slot === undefined) return;
 
-    if (!state.gameActive) {
+    if (!room.gameActive) {
       socket.emit("action_error", { message: "Game is not active right now." });
       return;
     }
 
-    if (!bothPlayersConnected()) {
-      socket.emit("action_error", {
-        message: "Opponent disconnected. Waiting for reconnection..."
-      });
+    if (!bothPlayersConnected(room)) {
+      socket.emit("action_error", { message: "Opponent disconnected. Waiting for reconnection..." });
       return;
     }
 
-    if (state.currentTurn !== slot) {
+    if (room.currentTurn !== slot) {
       socket.emit("action_error", { message: "Wait for your turn." });
       return;
     }
@@ -326,97 +454,130 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const row = getLowestOpenRow(column);
+    const row = getLowestOpenRow(room, column);
     if (row === -1) {
       socket.emit("action_error", { message: "Column is full." });
       return;
     }
 
-    const color = state.players[slot].color;
-    state.board[row][column] = color;
+    const color = room.players[slot].color;
+    room.board[row][column] = color;
 
-    if (didMoveWin(row, column, color)) {
-      finishGame(slot, false);
+    if (didMoveWin(room, row, column, color)) {
+      finishGame(room, slot, false);
       return;
     }
 
-    if (boardIsFull()) {
-      finishGame(null, true);
+    if (boardIsFull(room)) {
+      finishGame(room, null, true);
       return;
     }
 
-    state.currentTurn = 1 - state.currentTurn;
-    broadcastState();
+    room.currentTurn = 1 - room.currentTurn;
+    broadcastRoomState(room.id);
   });
 
   socket.on("request_rematch", () => {
-    const slot = socketToSlot.get(socket.id);
-    if (slot === undefined) return;
-    if (state.gameActive) return;
-    if (state.winnerSlot === null && !state.isDraw) return;
+    const info = socketInfo.get(socket.id);
+    if (!info.roomId) return;
 
-    state.rematchReady[slot] = true;
-    io.emit("rematch_status", {
-      rematchReady: state.rematchReady,
-      readyNames: state.rematchReady
-        .map((isReady, index) => (isReady ? state.players[index]?.name : null))
+    const room = rooms.get(info.roomId);
+    if (!room) return;
+
+    const slot = info.slot;
+    if (slot === undefined) return;
+    if (room.gameActive) return;
+    if (room.winnerSlot === null && !room.isDraw) return;
+
+    room.rematchReady[slot] = true;
+
+    io.to(room.id).emit("rematch_status", {
+      rematchReady: room.rematchReady,
+      readyNames: room.rematchReady
+        .map((isReady, index) => (isReady ? room.players[index]?.name : null))
         .filter(Boolean)
     });
-    broadcastState();
 
-    if (state.rematchReady.every(Boolean) && bothPlayersPresent() && bothPlayersConnected()) {
-      const starter = state.nextStarter ?? (state.currentStarter === 0 ? 1 : 0);
-      state.nextStarter = 1 - starter;
-      startGame(starter);
+    broadcastRoomState(room.id);
+
+    if (room.rematchReady.every(Boolean) && bothPlayersPresent(room) && bothPlayersConnected(room)) {
+      startGame(room);
     }
   });
 
   socket.on("reset_game", () => {
-    state.players = [null, null];
-    state.board = createEmptyBoard();
-    state.history = [];
-    state.gameNumber = 0;
-    state.gameActive = false;
-    state.winnerSlot = null;
-    state.isDraw = false;
-    state.currentTurn = null;
-    state.currentStarter = null;
-    state.nextStarter = null;
-    state.rematchReady = [false, false];
-    state.startedOnce = false;
+    const info = socketInfo.get(socket.id);
+    if (!info.roomId) return;
 
-    socketToSlot.clear();
-    clientIdToSlot.clear();
+    const room = rooms.get(info.roomId);
+    if (!room) return;
 
-    io.emit("game_reset");
-    broadcastLobbyUpdate();
-    broadcastState();
+    room.board = createEmptyBoard();
+    room.history = [];
+    room.gameNumber = 0;
+    room.gameActive = false;
+    room.winnerSlot = null;
+    room.isDraw = false;
+    room.currentTurn = null;
+    room.currentStarter = null;
+    room.nextStarter = null;
+    room.rematchReady = [false, false];
+    room.startedOnce = false;
+
+    io.to(room.id).emit("game_reset");
+    broadcastRoomState(room.id);
+
+    if (bothPlayersPresent(room)) {
+      startGame(room);
+    }
   });
 
   socket.on("disconnect", () => {
-    const slot = socketToSlot.get(socket.id);
-    if (slot === undefined) return;
+    const info = socketInfo.get(socket.id);
+    if (info && info.roomId) {
+      const room = rooms.get(info.roomId);
+      if (room && info.slot !== undefined && room.players[info.slot]) {
+        room.players[info.slot].connected = false;
+        room.players[info.slot].socketId = null;
 
-    socketToSlot.delete(socket.id);
-    const player = state.players[slot];
-    if (player && player.socketId === socket.id) {
-      player.connected = false;
-      player.socketId = null;
-      io.emit("opponent_disconnected", {
-        slot,
-        message: "Opponent disconnected. Waiting for reconnection..."
-      });
+        io.to(info.roomId).emit("opponent_disconnected", {
+          slot: info.slot,
+          message: "Opponent disconnected. Waiting for reconnection..."
+        });
+
+        broadcastRoomState(info.roomId);
+
+        setTimeout(() => {
+          const currentRoom = rooms.get(info.roomId);
+          if (currentRoom && currentRoom.players[info.slot] && !currentRoom.players[info.slot].connected) {
+            currentRoom.players[info.slot] = null;
+            const remainingPlayers = currentRoom.players.filter(Boolean).length;
+            if (remainingPlayers === 0) {
+              rooms.delete(info.roomId);
+            } else {
+              currentRoom.gameActive = false;
+              currentRoom.winnerSlot = null;
+              currentRoom.isDraw = false;
+              currentRoom.currentTurn = null;
+              currentRoom.rematchReady = [false, false];
+              currentRoom.startedOnce = false;
+              currentRoom.board = createEmptyBoard();
+              broadcastRoomState(info.roomId);
+            }
+            broadcastRoomList();
+          }
+        }, 30000);
+      }
+
+      broadcastRoomList();
     }
 
-    broadcastLobbyUpdate();
-    broadcastState();
+    socketInfo.delete(socket.id);
   });
 });
 
 const parsedPort = Number(process.env.PORT);
 const PORT = Number.isFinite(parsedPort) && parsedPort >= 0 ? parsedPort : 3000;
 server.listen(PORT, "0.0.0.0", () => {
-  // Replit-compatible bind for external/mobile access.
-  // eslint-disable-next-line no-console
   console.log(`Connect Four server running on http://0.0.0.0:${PORT}`);
 });

@@ -12,11 +12,11 @@
   <body>
     <div id="audioHint" class="audio-hint">Tap anywhere to enable sounds</div>
 
-    <div id="joinOverlay" class="overlay">
-      <div class="card">
+    <div id="loginScreen" class="screen">
+      <div class="card login-card">
         <h1>Connect Four</h1>
-        <p class="muted">Enter your name to join the game.</p>
-        <form id="joinForm">
+        <p class="muted">Enter your name to get started.</p>
+        <form id="loginForm">
           <label for="nameInput">Name (2-20 chars)</label>
           <input
             id="nameInput"
@@ -27,21 +27,58 @@
             autocomplete="name"
             required
           />
-          <button type="submit" id="joinBtn">Join Game</button>
+          <button type="submit" id="loginBtn">Enter Lobby</button>
         </form>
-        <p id="joinError" class="error" aria-live="polite"></p>
+        <p id="loginError" class="error" aria-live="polite"></p>
       </div>
     </div>
 
-    <main class="app-shell hidden" id="appShell">
+    <div id="lobbyScreen" class="screen hidden">
       <header class="top-bar">
         <div>
           <h2>Connect Four</h2>
+          <p class="status-text">Welcome, <span id="lobbyPlayerName"></span></p>
+        </div>
+        <div class="top-bar-actions">
+          <button id="logoutBtn" class="logout-btn" type="button">Log Out</button>
+          <button id="soundToggle" class="sound-toggle" type="button" aria-pressed="true">
+            Sound On
+          </button>
+        </div>
+      </header>
+
+      <section class="lobby-content">
+        <div class="lobby-header">
+          <h3>Game Rooms</h3>
+          <button id="createRoomBtn" type="button" class="create-room-btn">Create Room</button>
+        </div>
+        <div id="createRoomForm" class="create-room-form hidden">
+          <input
+            id="roomNameInput"
+            type="text"
+            maxlength="30"
+            placeholder="Room name (optional)"
+          />
+          <button id="confirmCreateBtn" type="button">Create</button>
+          <button id="cancelCreateBtn" type="button" class="cancel-btn">Cancel</button>
+        </div>
+        <div id="roomListContainer" class="room-list-container">
+          <p id="noRoomsMsg" class="muted center-text">No rooms yet. Create one to get started!</p>
+          <div id="roomList" class="room-list"></div>
+        </div>
+      </section>
+    </div>
+
+    <div id="gameScreen" class="screen hidden">
+      <header class="top-bar">
+        <div>
+          <h2 id="gameRoomName">Connect Four</h2>
           <p id="statusText" class="status-text"></p>
         </div>
         <div class="top-bar-actions">
-          <button id="startOverBtn" class="start-over-btn" type="button">Start Over</button>
-          <button id="soundToggle" class="sound-toggle" type="button" aria-pressed="true">
+          <button id="leaveRoomBtn" class="leave-btn" type="button">Leave Room</button>
+          <button id="startOverBtn" class="start-over-btn" type="button">Reset</button>
+          <button id="gameSoundToggle" class="sound-toggle" type="button" aria-pressed="true">
             Sound On
           </button>
         </div>
@@ -49,22 +86,21 @@
 
       <section id="waitingScreen" class="waiting-screen">
         <p><strong>You:</strong> <span id="youName">-</span></p>
-        <p>Waiting for another player to join…</p>
-        <p>Connected players: <span id="connectedCount">0</span>/2</p>
+        <p>Waiting for another player to join this room...</p>
       </section>
 
-      <section id="gameScreen" class="game-screen hidden">
+      <section id="playScreen" class="game-area hidden">
         <div class="layout">
           <aside class="player-card" id="player0Card">
             <p class="label">Player 1</p>
-            <p id="player0Name">Waiting…</p>
+            <p id="player0Name">Waiting...</p>
             <span class="chip red"></span>
             <p id="player0Conn" class="connection">Disconnected</p>
           </aside>
 
           <div class="board-column">
             <div id="disconnectBanner" class="disconnect hidden">
-              Opponent disconnected. Waiting for reconnection…
+              Opponent disconnected. Waiting for reconnection...
             </div>
 
             <div id="boardWrap" class="board-wrap">
@@ -82,7 +118,7 @@
 
           <aside class="player-card" id="player1Card">
             <p class="label">Player 2</p>
-            <p id="player1Name">Waiting…</p>
+            <p id="player1Name">Waiting...</p>
             <span class="chip yellow"></span>
             <p id="player1Conn" class="connection">Disconnected</p>
           </aside>
@@ -93,7 +129,7 @@
           <ul id="historyList"></ul>
         </details>
       </section>
-    </main>
+    </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script src="/client.js"></script>
