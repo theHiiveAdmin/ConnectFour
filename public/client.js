@@ -40,6 +40,9 @@ const youName = document.getElementById("youName");
 const statusText = document.getElementById("statusText");
 const resultBanner = document.getElementById("resultBanner");
 const disconnectBanner = document.getElementById("disconnectBanner");
+const turnBanner = document.getElementById("turnBanner");
+const turnIndicatorDot = document.getElementById("turnIndicatorDot");
+const turnIndicatorText = document.getElementById("turnIndicatorText");
 const rematchArea = document.getElementById("rematchArea");
 const rematchBtn = document.getElementById("rematchBtn");
 const rematchStatus = document.getElementById("rematchStatus");
@@ -117,6 +120,33 @@ function unlockAudio() {
   });
 }
 
+let audioCtx = null;
+
+function getAudioContext() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  return audioCtx;
+}
+
+function playMoveSound() {
+  if (!soundEnabled || !audioUnlocked) return;
+  try {
+    const ctx = getAudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+    osc.type = "sine";
+    osc.frequency.setValueAtTime(520, ctx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(260, ctx.currentTime + 0.08);
+    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.12);
+    osc.start(ctx.currentTime);
+    osc.stop(ctx.currentTime + 0.12);
+  } catch (e) {}
+}
+
 function playOutcomeSound(outcome) {
   if (!soundEnabled || !audioUnlocked) return;
   const sound = sounds[outcome];
@@ -161,6 +191,7 @@ function buildBoard() {
 
 function renderBoard(board) {
   const slots = boardEl.children;
+  let hasNewDisc = false;
   for (let row = 0; row < ROWS; row += 1) {
     for (let col = 0; col < COLS; col += 1) {
       const value = board[row][col];
@@ -170,9 +201,13 @@ function renderBoard(board) {
       if (!value) continue;
       const disc = document.createElement("div");
       const changed = !previousBoard || previousBoard[row][col] !== value;
+      if (changed) hasNewDisc = true;
       disc.className = `disc ${value}${changed ? " drop" : ""}`;
       slot.appendChild(disc);
     }
+  }
+  if (hasNewDisc && previousBoard) {
+    playMoveSound();
   }
 }
 
@@ -283,6 +318,32 @@ function handleGameOver(state) {
   }
 }
 
+function renderTurnBanner(state) {
+  if (!state.gameActive || state.currentTurn === null) {
+    turnBanner.classList.add("hidden");
+    return;
+  }
+
+  const currentPlayer = state.players[state.currentTurn];
+  if (!currentPlayer) {
+    turnBanner.classList.add("hidden");
+    return;
+  }
+
+  turnBanner.classList.remove("hidden");
+  turnBanner.classList.remove("your-turn", "opponent-turn");
+  turnIndicatorDot.classList.remove("red", "yellow");
+  turnIndicatorDot.classList.add(currentPlayer.color);
+
+  if (state.currentTurn === mySlot) {
+    turnBanner.classList.add("your-turn");
+    turnIndicatorText.textContent = "Your turn!";
+  } else {
+    turnBanner.classList.add("opponent-turn");
+    turnIndicatorText.textContent = `${currentPlayer.name}'s turn`;
+  }
+}
+
 function renderRoomState(state) {
   gameState = state;
   const playersPresent = state.players.filter(Boolean).length === 2;
@@ -309,10 +370,15 @@ function renderRoomState(state) {
     gameOverHandledFor = null;
   }
 
+  renderTurnBanner(state);
   renderRematch(state);
   renderBoard(state.board);
   handleGameOver(state);
   previousBoard = state.board.map((row) => row.slice());
+
+  if (!state.gameActive) {
+    turnBanner.classList.add("hidden");
+  }
 }
 
 function renderRoomList(roomsList) {

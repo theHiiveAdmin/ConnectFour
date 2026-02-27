@@ -332,6 +332,55 @@ button:disabled {
   gap: 10px;
 }
 
+.turn-banner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 12px 16px;
+  border-radius: 12px;
+  font-weight: 700;
+  font-size: 1.05rem;
+  text-align: center;
+}
+
+.turn-banner.your-turn {
+  background: #dcfce7;
+  border: 2px solid #22c55e;
+  color: #166534;
+}
+
+.turn-banner.opponent-turn {
+  background: #fef3c7;
+  border: 2px solid #f59e0b;
+  color: #92400e;
+}
+
+.turn-dot {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.turn-dot.red {
+  background: var(--red-disc);
+}
+
+.turn-dot.yellow {
+  background: var(--yellow-disc);
+}
+
+@keyframes pulse-turn {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.turn-banner.your-turn .turn-dot {
+  animation: pulse-turn 1.2s ease-in-out infinite;
+}
+
 .disconnect {
   padding: 10px;
   border-radius: 10px;
