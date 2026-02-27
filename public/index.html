@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, viewport-fit=cover"
+    />
+    <title>Connect Four</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div id="audioHint" class="audio-hint">Tap anywhere to enable sounds</div>
+
+    <div id="joinOverlay" class="overlay">
+      <div class="card">
+        <h1>Connect Four</h1>
+        <p class="muted">Enter your name to join the game.</p>
+        <form id="joinForm">
+          <label for="nameInput">Name (2-20 chars)</label>
+          <input
+            id="nameInput"
+            name="name"
+            type="text"
+            maxlength="20"
+            minlength="2"
+            autocomplete="name"
+            required
+          />
+          <button type="submit" id="joinBtn">Join Game</button>
+        </form>
+        <p id="joinError" class="error" aria-live="polite"></p>
+      </div>
+    </div>
+
+    <main class="app-shell hidden" id="appShell">
+      <header class="top-bar">
+        <div>
+          <h2>Connect Four</h2>
+          <p id="statusText" class="status-text"></p>
+        </div>
+        <button id="soundToggle" class="sound-toggle" type="button" aria-pressed="true">
+          Sound On
+        </button>
+      </header>
+
+      <section id="waitingScreen" class="waiting-screen">
+        <p><strong>You:</strong> <span id="youName">-</span></p>
+        <p>Waiting for another player to join…</p>
+        <p>Connected players: <span id="connectedCount">0</span>/2</p>
+      </section>
+
+      <section id="gameScreen" class="game-screen hidden">
+        <div class="layout">
+          <aside class="player-card" id="player0Card">
+            <p class="label">Player 1</p>
+            <p id="player0Name">Waiting…</p>
+            <span class="chip red"></span>
+            <p id="player0Conn" class="connection">Disconnected</p>
+          </aside>
+
+          <div class="board-column">
+            <div id="disconnectBanner" class="disconnect hidden">
+              Opponent disconnected. Waiting for reconnection…
+            </div>
+
+            <div id="boardWrap" class="board-wrap">
+              <div id="boardColumns" class="board-columns" aria-hidden="true"></div>
+              <div id="board" class="board" role="grid" aria-label="Connect Four board"></div>
+            </div>
+
+            <div id="resultBanner" class="result-banner"></div>
+
+            <div id="rematchArea" class="rematch hidden">
+              <button id="rematchBtn" type="button">Rematch</button>
+              <p id="rematchStatus" class="muted"></p>
+            </div>
+          </div>
+
+          <aside class="player-card" id="player1Card">
+            <p class="label">Player 2</p>
+            <p id="player1Name">Waiting…</p>
+            <span class="chip yellow"></span>
+            <p id="player1Conn" class="connection">Disconnected</p>
+          </aside>
+        </div>
+
+        <details class="history-panel" open>
+          <summary>Game History</summary>
+          <ul id="historyList"></ul>
+        </details>
+      </section>
+    </main>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="/client.js"></script>
+  </body>
+</html>

@@ -1,0 +1,136 @@
+You are an expert full-stack engineer. Build a deployable two-player, real-time Connect Four web app on Replit that works great on BOTH desktop and mobile browsers.
+
+## Goal
+Create a multiplayer Connect Four game that looks like the classic board (7 columns x 6 rows, blue board with circular slots, red/yellow discs). Two players can join from different devices (computer or phone/tablet) and play the same game in real time.
+
+## Tech constraints (choose the simplest reliable stack)
+- Node.js + Express backend.
+- Socket.IO for real-time communication.
+- Frontend: plain HTML/CSS/JS (no frameworks) unless absolutely necessary.
+- Must run on Replit with: `npm install` then `npm start`.
+- Provide `README.md` with Replit run steps and a mobile-access note.
+
+## Cross-device + mobile requirements (IMPORTANT)
+1) Mobile-first responsive layout
+- Use responsive CSS (flex/grid) and avoid fixed pixel widths.
+- The board must scale to fit:
+  - Desktop (wide)
+  - Mobile portrait (narrow) with no horizontal scrolling
+- Use `meta viewport` tag in `index.html`:
+  - `<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">`
+
+2) Touch-friendly interactions
+- Column selection must work via click AND touch.
+- Ensure each column tap target is large enough (minimum ~44px height/width).
+- Prevent double-tap zoom issues by using appropriate CSS (do not break accessibility):
+  - Use `touch-action: manipulation;` on interactive elements.
+
+3) Safe audio behavior on mobile
+- Mobile browsers often block autoplay.
+- Implement audio so it only plays after the user has interacted at least once.
+- Add a “Sound On” toggle (default ON) and show a one-time hint like:
+  - “Tap anywhere to enable sounds” until the first interaction occurs.
+- Ensure win/lose sounds play reliably after interaction is unlocked.
+
+4) Network reality
+- Works on Wi-Fi and cellular.
+- Handle transient disconnects gracefully:
+  - If a player disconnects, show “Opponent disconnected. Waiting for reconnection…”
+  - Automatically resync state when they reconnect.
+
+5) External access from phone
+- The app must listen on `process.env.PORT` and bind host `0.0.0.0` (or default Express behavior that works on Replit).
+- In README, include:
+  - “Open the Replit Webview URL on your phone (same URL) to join as Player 2.”
+
+## Core UX requirements
+1) Landing / Join
+- When a user opens the page, show a modal or centered card asking for their name (required, 2–20 chars).
+- After submitting, they enter a waiting room showing:
+  - Their name
+  - “Waiting for another player to join…”
+  - Number of connected players (0/1/2)
+
+2) Start game once both names exist
+- When two players have joined, both clients transition to the game UI.
+- Display both player names prominently (e.g., left and right, or stacked on mobile).
+- Indicate whose turn it is with a clear badge/outline.
+
+3) Turn logic
+- Standard Connect Four rules:
+  - Player taps/clicks a column; disc drops to the lowest available slot.
+  - Win condition: 4 in a row (horizontal, vertical, diagonal both directions).
+  - Detect draw when board is full and no winner.
+  - Prevent illegal moves (full column, playing out of turn, playing after game ends).
+
+4) Who goes first
+- First game: randomly pick the starting player.
+- Subsequent games: alternate who starts each rematch.
+- Show “Player X starts” at the beginning of each game.
+
+5) Winner/Loser sounds + UI feedback
+- When a game ends with a winner:
+  - Play a “positive” sound for the winner client.
+  - Play a “sad” sound for the loser client.
+  - Show a clear banner “{name} wins!”
+- Draw: show “Draw” and optionally play a neutral sound.
+
+Audio implementation detail:
+- Include local audio assets in `/public/sounds/` (e.g., `win.mp3`, `lose.mp3`, optional `draw.mp3`).
+- Add a small sound toggle UI and implement “unlock audio on first user interaction” logic for mobile.
+
+6) Shared game history
+- Both players see a history panel that persists while the server runs:
+  - List of completed games with timestamp, winner (or Draw), and starting player.
+  - Example: “Game 3 — 7:42 PM — Winner: David — Started: Taylor”
+- History syncs live to both clients on game end.
+
+7) Rematch
+- After game ends, show a “Rematch” button for both players.
+- When both click rematch, reset board and start new game (alternate starter).
+- If one clicks first, show “Waiting for opponent…”
+
+8) Disconnect handling + full room
+- If a player disconnects, remaining player sees waiting message.
+- Reconnect should resync game and allow rejoin.
+- If a third person tries to join while two players are already in session, show “Game is full” and block joining.
+
+## Visual design requirements
+- Resembles Connect Four:
+  - Blue board background, circular cutouts, red/yellow discs.
+- Add a subtle drop animation.
+- Responsive:
+  - On desktop: board centered with player panels on left/right.
+  - On mobile: stack panels above/below board; history collapsible or below.
+
+## Server/game state requirements
+- Server authoritative state:
+  - players (socket id, name, assigned color), board, whose turn, starter rotation, history.
+- Validate moves server-side and broadcast state updates.
+
+## Deliverables
+- Full project files:
+  - `server.js` Express + Socket.IO (listen on `process.env.PORT`)
+  - `public/index.html` (includes viewport meta)
+  - `public/styles.css` (responsive + touch-friendly)
+  - `public/client.js` (socket logic + audio unlock + UI)
+  - `public/sounds/` audio files
+  - `package.json` with `"start": "node server.js"`
+  - `README.md` with Replit + mobile join instructions
+- Include comments explaining the socket events and win detection.
+
+## Socket events (suggested)
+- `join` (name)
+- `lobby_update`
+- `start_game`
+- `make_move` (column)
+- `state_update`
+- `game_over`
+- `request_rematch` / `rematch_status`
+- `opponent_disconnected`
+
+## Quality bar
+- Works reliably on iPhone/Android + desktop Chrome/Edge/Safari.
+- No desync; win detection correct; starter alternation correct; history correct; touch targets usable.
+
+Now implement the app. Output all necessary files with full contents. Then include a short “How to run on Replit + How to join from phone” section.
