@@ -4,7 +4,7 @@
   "description": "Two-player real-time Connect Four with Socket.IO",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js"
+    "start": "PORT=5000 node server.js"
   },
   "dependencies": {
     "express": "^4.19.2",
